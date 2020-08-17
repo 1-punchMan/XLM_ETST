@@ -10,12 +10,15 @@ import random
 import argparse
 
 from src.slurm import init_signal_handler, init_distributed_mode
-from src.data.loader import check_data_params, load_data
+from src.data.loader import check_data_params, load_data, seq2seq_load_data
 from src.utils import bool_flag, initialize_exp, set_sampling_probs, shuf_order
-from src.model import check_model_params, build_model
+from src.model import check_model_params, build_model, build_seq2seq_model, build_clts_xencoder_model, build_clts_elmo_model
 from src.model.memory import HashingMemory
-from src.trainer import SingleTrainer, EncDecTrainer
-from src.evaluation.evaluator import SingleEvaluator, EncDecEvaluator
+from src.trainer import SingleTrainer, EncDecTrainer, XLMCLTSEncDecTrainer
+from src.evaluation.evaluator import SingleEvaluator, EncDecEvaluator, MyEncDecEvaluator, XLMCLTSEncDecEvaluator
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def get_parser():
@@ -64,6 +67,8 @@ def get_parser():
                         help="Use sinusoidal embeddings")
     parser.add_argument("--use_lang_emb", type=bool_flag, default=True,
                         help="Use language embedding")
+        
+    
 
     # memory parameters
     parser.add_argument("--use_memory", type=bool_flag, default=False,
@@ -115,6 +120,7 @@ def get_parser():
                         help="Minimum vocabulary count")
     parser.add_argument("--lg_sampling_factor", type=float, default=-1,
                         help="Language sampling factor")
+
 
     # batch parameters
     parser.add_argument("--bptt", type=int, default=256,
@@ -175,6 +181,8 @@ def get_parser():
                         help="Back-translation steps")
     parser.add_argument("--pc_steps", type=str, default="",
                         help="Parallel classification steps")
+    parser.add_argument("--unsclts_steps", type=str, default="",
+                        help="'en-EN', 'zh'-'ZH'")
 
     # reload pretrained embeddings / pretrained model / checkpoint
     parser.add_argument("--reload_emb", type=str, default="",
@@ -183,6 +191,8 @@ def get_parser():
                         help="Reload a pretrained model")
     parser.add_argument("--reload_checkpoint", type=str, default="",
                         help="Reload a checkpoint")
+
+    
 
     # beam search (for MT only)
     parser.add_argument("--beam_size", type=int, default=1,
@@ -211,6 +221,69 @@ def get_parser():
                         help="Multi-GPU - Local rank")
     parser.add_argument("--master_port", type=int, default=-1,
                         help="Master port (for multi-node SLURM jobs)")
+
+
+
+    ########## added by chiamin ##########
+    
+    # general
+    parser.add_argument("--share_encdec_emb", type=bool_flag, default=False, help="Share encoder and decoder word embeddings")
+    
+    parser.add_argument("--eval_rouge", type=bool_flag, default=False, help="Evaluate ROUGE-1 F1 score during TS training")
+    parser.add_argument("--label_smoothing", type=float, default=0., help="Label smoothing loss (0 to disable)")
+
+    parser.add_argument("--separated_vocab", type=bool_flag, default=False, help"Use different vocabulary/dictionary for encoder and decoder. If True, shared_encdec_emb will always be False")
+
+
+    # separated vocabulary/dictionary
+    parser.add_argument("--src_max_vocab", type=int, default=-1,
+                        help="Maximum source vocabulary size (-1 to disable)")
+    parser.add_argument("--tgt_max_vocab", type=int, default=-1,
+                        help="Maximum target vocabulary size (-1 to disable)")
+    parser.add_argument("--src_min_count", type=int, default=0,
+                        help="Minimum source vocabulary count")
+    parser.add_argument("--tgt_min_count", type=int, default=0,
+                        help="Minimum target vocabulary count")
+    
+
+    # clts-xencoder
+    parser.add_argument("--use_xencoder", type=bool_flag, default=False, help="use cross-lingual encoder")
+    parser.add_argument("--reload_xencoder", type=str, default="", help="Reload pretrained xlm (cross-lingual encoder). Used in clts-xencoder")
+    parser.add_argument("--ts_emb_dim", type=int, default=512,
+                        help="text summarization embedding layer size")
+    parser.add_argument("--ts_n_layers", type=int, default=4,
+                        help="Number of Transformer layers")
+    parser.add_argument("--ts_n_heads", type=int, default=8,
+                        help="Number of Transformer heads")
+    parser.add_argument("--ts_dropout", type=float, default=0,
+                        help="Dropout")
+    parser.add_argument("--ts_attention_dropout", type=float, default=0,
+                        help="Dropout in the attention layer")
+    parser.add_argument("--ts_gelu_activation", type=bool_flag, default=False,
+                        help="Use a GELU activation instead of ReLU")
+    parser.add_argument("--xencoder_optimizer", type=str, default="adam,lr=0.0001",
+                        help="Cross-lingual Optimizer (SGD / RMSprop / Adam, etc.)")
+
+
+    # clts-elmo
+    parser.add_argument("--reload_elmo", type=str, default="", help="Reload pretrained elmo. Used in clts-elmo evaluation")
+    parser.add_argument("--elmo_tune_lm", type=bool_flag, default=True, help="")
+    parser.add_argument("--elmo_weights_dropout", type=float, default=0.0, help="")
+    parser.add_argument("--elmo_final_dropout", type=float, default=0.0, help="")
+    parser.add_argument("--elmo_layer_norm", type=bool_flag, default=True, help="")
+    parser.add_argument("--elmo_affine_layer_norm", type=bool_flag, default=False, help="")
+    parser.add_argument("--elmo_apply_softmax", type=bool_flag, default=True, help="")
+    parser.add_argument("--elmo_channelwise_weights", type=bool_flag, default=False, help="")
+    parser.add_argument("--elmo_scaled_sigmoid", type=bool_flag, default=False, help="")
+    parser.add_argument("--elmo_individual_norms", type=bool_flag, default=False, help="")
+    parser.add_argument("--elmo_channelwise_norm", type=bool_flag, default=False, help="")
+    parser.add_argument("--elmo_init_gamma", type=float, default=1.0, help="")
+    parser.add_argument("--elmo_ltn", type=bool_flag, default=False, help="")
+    parser.add_argument("--elmo_ltn_dims", type=str, default="", help="")
+    parser.add_argument("--elmo_train_gamma", type=bool_flag, default=True, help="")
+   
+        
+    ######################################
 
     return parser
 
@@ -251,13 +324,17 @@ def main(params):
         logger.info("__log__:%s" % json.dumps(scores))
         exit()
 
+    # print(params)
+    # input()
+
     # set sampling probabilities for training
     set_sampling_probs(data, params)
 
     # language model training
     for _ in range(params.max_epoch):
 
-        logger.info("============ Starting epoch %i ... ============" % trainer.epoch)
+        logger.info("============ Starting epoch %i ... ============" %
+                    trainer.epoch)
 
         trainer.n_sentences = 0
 
@@ -289,7 +366,8 @@ def main(params):
 
             trainer.iter()
 
-        logger.info("============ End of epoch %i ============" % trainer.epoch)
+        logger.info("============ End of epoch %i ============" %
+                    trainer.epoch)
 
         # evaluate perplexity
         scores = evaluator.run_all_evals(trainer)
@@ -306,11 +384,225 @@ def main(params):
         trainer.end_epoch(scores)
 
 
+def seq2seq_main(params):
+    '''
+      Use different vocabulary/dictionary for src and tgt
+    '''
+
+    # initialize the multi-GPU / multi-node training
+    init_distributed_mode(params)
+
+    # initialize the experiment
+    logger = initialize_exp(params)
+
+    # initialize SLURM signal handler for time limit / pre-emption
+    init_signal_handler()
+
+    # load data
+    data = seq2seq_load_data(params)
+
+    # build model
+    # 因為 language pair 會重新升冪排序 (zh-en) --> (en-zh)
+    # 所以 en 變成 src ， zh 變成 tgt
+    encoder, decoder = build_seq2seq_model(
+        params, data['tgt_dico'], data['src_dico'])
+
+    # build trainer, reload potential checkpoints / build evaluator
+    trainer = EncDecTrainer(encoder, decoder, data, params)
+    evaluator = MyEncDecEvaluator(trainer, data, params)
+
+    # evaluation
+    if params.eval_only:
+        scores = evaluator.run_all_evals(trainer)
+        for k, v in scores.items():
+            logger.info("%s -> %.6f" % (k, v))
+        logger.info("__log__:%s" % json.dumps(scores))
+        exit()
+
+    # set sampling probabilities for training
+    set_sampling_probs(data, params)
+
+    # language model training
+    for _ in range(params.max_epoch):
+
+        logger.info("============ Starting epoch %i ... ============" %
+                    trainer.epoch)
+
+        trainer.n_sentences = 0
+
+        while trainer.n_sentences < trainer.epoch_size:
+
+            
+
+            # denoising auto-encoder steps
+            for lang in shuf_order(params.ae_steps):
+                trainer.mt_step(lang, lang, params.lambda_ae)
+
+            # machine translation steps
+            for lang1, lang2 in shuf_order(params.mt_steps, params):
+                trainer.mt_step(lang1, lang2, params.lambda_mt)
+
+            # back-translation steps
+            for lang1, lang2, lang3 in shuf_order(params.bt_steps):
+                trainer.bt_step(lang1, lang2, lang3, params.lambda_bt)
+
+            trainer.iter()
+
+        logger.info("============ End of epoch %i ============" %
+                    trainer.epoch)
+
+        # evaluate perplexity
+        scores = evaluator.run_all_evals(trainer)
+
+        # print / JSON log
+        for k, v in scores.items():
+            logger.info("%s -> %.6f" % (k, v))
+        if params.is_master:
+            logger.info("__log__:%s" % json.dumps(scores))
+
+        # end of epoch
+        trainer.save_best_model(scores)
+        trainer.save_periodic()
+        trainer.end_epoch(scores)
+
+
+def clts_xencoder_main(params):
+
+    # initialize the multi-GPU / multi-node training
+    init_distributed_mode(params)
+
+    # initialize the experiment
+    logger = initialize_exp(params)
+
+    # initialize SLURM signal handler for time limit / pre-emption
+    init_signal_handler()
+
+    # load data
+    data = load_data(params)
+
+    # cross lingual encoder
+
+    # cross lingual  text summarization encoder, text summarization decoder
+    xencoder, ts_encoder, ts_decoder = build_clts_xencoder_model(params, data['dico'])
+
+    trainer = XLMCLTSEncDecTrainer(xencoder, ts_encoder, ts_decoder, data, params)
+    evaluator = XLMCLTSEncDecEvaluator(trainer, data, params)
+
+    # evaluation
+    if params.eval_only:
+        scores = evaluator.run_all_evals(trainer)
+        for k, v in scores.items():
+            logger.info("%s -> %.6f" % (k, v))
+        logger.info("__log__:%s" % json.dumps(scores))
+        exit()
+
+    # set sampling probabilities for training
+    set_sampling_probs(data, params)
+
+    # language model training
+    for _ in range(params.max_epoch):
+
+        logger.info("============ Starting epoch %i ... ============" %
+                    trainer.epoch)
+
+        trainer.n_sentences = 0
+
+        while trainer.n_sentences < trainer.epoch_size:
+
+            # machine translation steps
+            for lang1, lang2 in shuf_order(params.mt_steps, params):
+                trainer.mt_step(lang1, lang2, params.lambda_mt)
+
+            trainer.iter()
+
+        logger.info("============ End of epoch %i ============" %
+                    trainer.epoch)
+
+        # evaluate perplexity
+        scores = evaluator.run_all_evals(trainer)
+
+        # print / JSON log
+        for k, v in scores.items():
+            logger.info("%s -> %.6f" % (k, v))
+        if params.is_master:
+            logger.info("__log__:%s" % json.dumps(scores))
+
+        # end of epoch
+        trainer.save_best_model(scores)
+        trainer.save_periodic()
+        trainer.end_epoch(scores)
+
+def clts_elmo_main(params):
+
+    # initialize the multi-GPU / multi-node training
+    init_distributed_mode(params)
+
+    # initialize the experiment
+    logger = initialize_exp(params)
+
+    # initialize SLURM signal handler for time limit / pre-emption
+    init_signal_handler()
+
+    # load data
+    data = load_data(params)
+
+    # cross lingual encoder
+
+    # cross lingual  text summarization encoder, text summarization decoder
+    elmo, ts_encoder, ts_decoder = build_clts_elmo_model(params, data['dico'])
+
+    trainer = XLMCLTSEncDecTrainer(elmo, ts_encoder, ts_decoder, data, params)
+    evaluator = XLMCLTSEncDecEvaluator(trainer, data, params)
+
+    # evaluation
+    if params.eval_only:
+        scores = evaluator.run_all_evals(trainer)
+        for k, v in scores.items():
+            logger.info("%s -> %.6f" % (k, v))
+        logger.info("__log__:%s" % json.dumps(scores))
+        exit()
+
+    # set sampling probabilities for training
+    set_sampling_probs(data, params)
+
+    # language model training
+    for _ in range(params.max_epoch):
+
+        logger.info("============ Starting epoch %i ... ============" %
+                    trainer.epoch)
+
+        trainer.n_sentences = 0
+
+        while trainer.n_sentences < trainer.epoch_size:
+
+            # machine translation steps
+            for lang1, lang2 in shuf_order(params.mt_steps, params):
+                trainer.mt_step(lang1, lang2, params.lambda_mt)
+
+            trainer.iter()
+
+        logger.info("============ End of epoch %i ============" %
+                    trainer.epoch)
+
+        # evaluate perplexity
+        scores = evaluator.run_all_evals(trainer)
+
+        # print / JSON log
+        for k, v in scores.items():
+            logger.info("%s -> %.6f" % (k, v))
+        if params.is_master:
+            logger.info("__log__:%s" % json.dumps(scores))
+
+        # end of epoch
+        trainer.save_best_model(scores)
+        trainer.save_periodic()
+        trainer.end_epoch(scores)
+
 if __name__ == '__main__':
 
     # generate parser / parse parameters
     parser = get_parser()
-    params = parser.parse_args()
+    params = parser.parse_args()  
 
     # debug mode
     if params.debug:
@@ -324,4 +616,11 @@ if __name__ == '__main__':
     check_model_params(params)
 
     # run experiment
-    main(params)
+    if 'mlm' in params.exp_name or 'baseline' in params.exp_name or 'ft' in params.exp_name:
+        main(params)
+    elif 'xencoder' in params.exp_name:
+        clts_xencoder_main(params)
+    elif 'elmo' in params.exp_name:
+        clts_elmo_main(params)
+
+    # seq2seq_main(params)

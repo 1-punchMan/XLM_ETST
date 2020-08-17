@@ -166,15 +166,20 @@ if [ $pair == "en-vi" ]; then
   unzip -u $PARA_PATH/download.php?f=OpenSubtitles2018%2Fen-vi.txt.zip -d $PARA_PATH
 fi
 
+##### Deleted by Chiamin #####
 # en-zh
-if [ $pair == "en-zh" ]; then
-  echo "Download parallel data for English-Chinese"
-  # OpenSubtitles 2016
-  # wget -c http://opus.nlpl.eu/download.php?f=OpenSubtitles2016%2Fen-zh.txt.zip -P $PARA_PATH
-  # MultiUN
-  wget -c http://opus.nlpl.eu/download.php?f=MultiUN%2Fen-zh.txt.zip -P $PARA_PATH
-  unzip -u $PARA_PATH/download.php?f=MultiUN%2Fen-zh.txt.zip -d $PARA_PATH
-fi
+# if [ $pair == "en-zh" ]; then
+#   echo "Download parallel data for English-Chinese"
+#   # OpenSubtitles 2016
+#   # wget -c http://opus.nlpl.eu/download.php?f=OpenSubtitles2016%2Fen-zh.txt.zip -P $PARA_PATH
+#   # MultiUN
+#   wget -c http://opus.nlpl.eu/download.php?f=MultiUN%2Fen-zh.txt.zip -P $PARA_PATH
+#   unzip -u $PARA_PATH/download.php?f=MultiUN%2Fen-zh.txt.zip -d $PARA_PATH
+# fi
+###### End Deleted #####
+
+# for en-zh, download cwmt2020 (cwmt.en, cwmt.zh) manually to $PARA_PATH. 
+
 
 
 #
@@ -183,7 +188,7 @@ fi
 
 # tokenize
 for lg in $(echo $pair | sed -e 's/\-/ /g'); do
-  if [ ! -f $PARA_PATH/$pair.$lg.all ]; then
+  if [ ! -f $PARA_PATH/$pair.$lg.all ]; then    
     cat $PARA_PATH/*.$pair.$lg | $TOKENIZE $lg | python $LOWER_REMOVE_ACCENT > $PARA_PATH/$pair.$lg.all
   fi
 done
@@ -196,6 +201,7 @@ split_data() {
     NLINES=`wc -l $1  | awk -F " " '{print $1}'`;
     NTRAIN=$((NLINES - 10000));
     NVAL=$((NTRAIN + 5000));
+
     shuf --random-source=<(get_seeded_random 42) $1 | head -$NTRAIN             > $2;
     shuf --random-source=<(get_seeded_random 42) $1 | head -$NVAL | tail -5000  > $3;
     shuf --random-source=<(get_seeded_random 42) $1 | tail -5000                > $4;

@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
     voc_path = sys.argv[1]
     txt_path = sys.argv[2]
-    bin_path = sys.argv[2] + '.pth'
+    bin_path = sys.argv[2].replace('.bpe', '') + '.pth'
     assert os.path.isfile(voc_path)
     assert os.path.isfile(txt_path)
 
@@ -44,7 +44,8 @@ if __name__ == '__main__':
         logger.info("%i unknown words (%i unique), covering %.2f%% of the data." % (
             sum(data['unk_words'].values()),
             len(data['unk_words']),
-            sum(data['unk_words'].values()) * 100. / (len(data['sentences']) - len(data['positions']))
+            sum(data['unk_words'].values()) * 100. /
+            (len(data['sentences']) - len(data['positions']))
         ))
         if len(data['unk_words']) < 30:
             for w, c in sorted(data['unk_words'].items(), key=lambda x: x[1])[::-1]:

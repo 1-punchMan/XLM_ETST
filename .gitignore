@@ -127,3 +127,12 @@ dmypy.json
 # /tools
 /data
 /dumped
+
+/apex
+/pretrained_models/
+
+tools/fastBPE/
+tools/mosesdecoder/
+tools/wikiextractor/
+tools/wmt16-scripts/
+tools/stanford-segmenter-2018-10-16/

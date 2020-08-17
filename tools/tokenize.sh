@@ -22,6 +22,7 @@ NORM_PUNC=$MOSES/scripts/tokenizer/normalize-punctuation.perl
 REM_NON_PRINT_CHAR=$MOSES/scripts/tokenizer/remove-non-printing-char.perl
 TOKENIZER=$MOSES/scripts/tokenizer/tokenizer.perl
 
+
 # Chinese
 if [ "$lg" = "zh" ]; then
   $TOOLS_PATH/stanford-segmenter-*/segment.sh pku /dev/stdin UTF-8 0 | $REPLACE_UNICODE_PUNCT | $NORM_PUNC -l $lg | $REM_NON_PRINT_CHAR

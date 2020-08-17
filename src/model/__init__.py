@@ -10,8 +10,10 @@ import os
 import torch
 
 from .pretrain import load_embeddings
-from .transformer import DECODER_ONLY_PARAMS, TransformerModel  # , TRANSFORMER_LAYER_PARAMS
+# , TRANSFORMER_LAYER_PARAMS
+from .transformer import DECODER_ONLY_PARAMS, TransformerModel, MyTransformerModel, CrossLingualTransformerModel
 from .memory import HashingMemory
+from .embedder import ElmoTokenEmbedder
 
 
 logger = getLogger()
@@ -55,7 +57,8 @@ def check_model_params(params):
         s = params.asm_cutoffs.split(',')
         assert all([x.isdigit() for x in s])
         params.asm_cutoffs = [int(x) for x in s]
-        assert params.max_vocab == -1 or params.asm_cutoffs[-1] < params.max_vocab
+        assert params.max_vocab == - \
+            1 or params.asm_cutoffs[-1] < params.max_vocab
 
     # memory
     if params.use_memory:
@@ -64,13 +67,20 @@ def check_model_params(params):
         s_dec = [x for x in params.mem_dec_positions.split(',') if x != '']
         assert len(s_enc) == len(set(s_enc))
         assert len(s_dec) == len(set(s_dec))
-        assert all(x.isdigit() or x[-1] == '+' and x[:-1].isdigit() for x in s_enc)
-        assert all(x.isdigit() or x[-1] == '+' and x[:-1].isdigit() for x in s_dec)
-        params.mem_enc_positions = [(int(x[:-1]), 'after') if x[-1] == '+' else (int(x), 'in') for x in s_enc]
-        params.mem_dec_positions = [(int(x[:-1]), 'after') if x[-1] == '+' else (int(x), 'in') for x in s_dec]
-        assert len(params.mem_enc_positions) + len(params.mem_dec_positions) > 0
-        assert len(params.mem_enc_positions) == 0 or 0 <= min([x[0] for x in params.mem_enc_positions]) <= max([x[0] for x in params.mem_enc_positions]) <= params.n_layers - 1
-        assert len(params.mem_dec_positions) == 0 or 0 <= min([x[0] for x in params.mem_dec_positions]) <= max([x[0] for x in params.mem_dec_positions]) <= params.n_layers - 1
+        assert all(x.isdigit() or x[-1] ==
+                   '+' and x[:-1].isdigit() for x in s_enc)
+        assert all(x.isdigit() or x[-1] ==
+                   '+' and x[:-1].isdigit() for x in s_dec)
+        params.mem_enc_positions = [
+            (int(x[:-1]), 'after') if x[-1] == '+' else (int(x), 'in') for x in s_enc]
+        params.mem_dec_positions = [
+            (int(x[:-1]), 'after') if x[-1] == '+' else (int(x), 'in') for x in s_dec]
+        assert len(params.mem_enc_positions) + \
+            len(params.mem_dec_positions) > 0
+        assert len(params.mem_enc_positions) == 0 or 0 <= min([x[0] for x in params.mem_enc_positions]) <= max(
+            [x[0] for x in params.mem_enc_positions]) <= params.n_layers - 1
+        assert len(params.mem_dec_positions) == 0 or 0 <= min([x[0] for x in params.mem_dec_positions]) <= max(
+            [x[0] for x in params.mem_dec_positions]) <= params.n_layers - 1
 
     # reload pretrained word embeddings
     if params.reload_emb != '':
@@ -82,6 +92,7 @@ def check_model_params(params):
             assert os.path.isfile(params.reload_model)
         else:
             s = params.reload_model.split(',')
+            print(s)
             assert len(s) == 2
             assert all([x == '' or os.path.isfile(x) for x in s])
 
@@ -107,9 +118,11 @@ def build_model(params, dico):
     """
     Build model.
     """
+
     if params.encoder_only:
         # build
-        model = TransformerModel(params, dico, is_encoder=True, with_output=True)
+        model = TransformerModel(
+            params, dico, is_encoder=True, with_output=True)
 
         # reload pretrained word embeddings
         if params.reload_emb != '':
@@ -119,7 +132,8 @@ def build_model(params, dico):
         # reload a pretrained model
         if params.reload_model != '':
             logger.info("Reloading model from %s ..." % params.reload_model)
-            reloaded = torch.load(params.reload_model, map_location=lambda storage, loc: storage.cuda(params.local_rank))['model']
+            reloaded = torch.load(params.reload_model, map_location=lambda storage, loc: storage.cuda(
+                params.local_rank))['model']
             if all([k.startswith('module.') for k in reloaded.keys()]):
                 reloaded = {k[len('module.'):]: v for k, v in reloaded.items()}
 
@@ -140,8 +154,21 @@ def build_model(params, dico):
 
     else:
         # build
-        encoder = TransformerModel(params, dico, is_encoder=True, with_output=True)  # TODO: only output when necessary - len(params.clm_steps + params.mlm_steps) > 0
-        decoder = TransformerModel(params, dico, is_encoder=False, with_output=True)
+        # TODO: only output when necessary - len(params.clm_steps + params.mlm_steps) > 0
+        # encoder = TransformerModel(
+        #     params, dico, is_encoder=True, with_output=True)
+        encoder = TransformerModel(
+            params, dico, is_encoder=True, with_output=True)  # if baseline, with_output=False
+        decoder = TransformerModel(
+            params, dico, is_encoder=False, with_output=True)
+
+        ########## edited by chiamin ##########
+        if params.share_encdec_emb:
+            decoder.embeddings.weight = encoder.embeddings.weight
+            if params.share_inout_emb:
+                # re-tie proj.weight with new decoder.embeddings.weight because of decoder.embeddings.weight is tied with encoder.embeddings.weight
+                decoder.pred_layer.proj.weight = decoder.embeddings.weight
+        #######################################
 
         # reload pretrained word embeddings
         if params.reload_emb != '':
@@ -157,29 +184,342 @@ def build_model(params, dico):
             # reload encoder
             if enc_path != '':
                 logger.info("Reloading encoder from %s ..." % enc_path)
-                enc_reload = torch.load(enc_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+                enc_reload = torch.load(
+                    enc_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
                 enc_reload = enc_reload['model' if 'model' in enc_reload else 'encoder']
                 if all([k.startswith('module.') for k in enc_reload.keys()]):
-                    enc_reload = {k[len('module.'):]: v for k, v in enc_reload.items()}
+                    enc_reload = {k[len('module.'):]: v for k,
+                                  v in enc_reload.items()}
                 encoder.load_state_dict(enc_reload)
 
             # reload decoder
             if dec_path != '':
                 logger.info("Reloading decoder from %s ..." % dec_path)
-                dec_reload = torch.load(dec_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+                dec_reload = torch.load(
+                    dec_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
                 dec_reload = dec_reload['model' if 'model' in dec_reload else 'decoder']
                 if all([k.startswith('module.') for k in dec_reload.keys()]):
-                    dec_reload = {k[len('module.'):]: v for k, v in dec_reload.items()}
+                    dec_reload = {k[len('module.'):]: v for k,
+                                  v in dec_reload.items()}
                 for i in range(params.n_layers):
                     for name in DECODER_ONLY_PARAMS:
                         if name % i not in dec_reload:
-                            logger.warning("Parameter %s not found." % (name % i))
-                            dec_reload[name % i] = decoder.state_dict()[name % i]
+                            logger.warning(
+                                "Parameter %s not found." % (name % i))
+                            dec_reload[name % i] = decoder.state_dict()[
+                                name % i]
                 decoder.load_state_dict(dec_reload)
 
         logger.debug("Encoder: {}".format(encoder))
         logger.debug("Decoder: {}".format(decoder))
-        logger.info("Number of parameters (encoder): %i" % sum([p.numel() for p in encoder.parameters() if p.requires_grad]))
-        logger.info("Number of parameters (decoder): %i" % sum([p.numel() for p in decoder.parameters() if p.requires_grad]))
+        logger.info("Number of parameters (encoder): %i" % sum(
+            [p.numel() for p in encoder.parameters() if p.requires_grad]))
+        logger.info("Number of parameters (decoder): %i" % sum(
+            [p.numel() for p in decoder.parameters() if p.requires_grad]))
 
         return encoder.cuda(), decoder.cuda()
+
+
+def build_seq2seq_model(params, src_dico, tgt_dico):
+    """
+    Build model for separated src_vocab embeddings and tgt_vocab embeddings.
+    """
+    encoder = MyTransformerModel(
+        params, src_dico, is_encoder=True, with_output=False)
+    decoder = MyTransformerModel(
+        params, tgt_dico, is_encoder=False, with_output=True)
+
+    if params.share_encdec_emb:
+        decoder.embeddings.weight = encoder.embeddings.weight
+
+    # reload pretrained word embeddings
+    if params.reload_emb != '':
+        word2id, embeddings = load_embeddings(params.reload_emb, params)
+        set_pretrain_emb(encoder, src_dico, word2id, embeddings)
+        set_pretrain_emb(decoder, tgt_dico, word2id, embeddings)
+
+    ########## edited by chiamin ##########
+    # if params.share_encdec_emb:
+    #     decoder.embeddings.weight = encoder.embeddings.weight
+    #     if params.share_inout_emb:
+    #         # re-tie proj.weight with new decoder.embeddings.weight because of decoder.embeddings.weight is tied with encoder.embeddings.weight
+    #         decoder.pred_layer.proj.weight = decoder.embeddings.weight
+    #######################################
+
+    # reload a pretrained model
+    if params.reload_model != '':
+        enc_path, dec_path = params.reload_model.split(',')
+        assert not (enc_path == '' and dec_path == '')
+
+        # reload encoder
+        if enc_path != '':
+            logger.info("Reloading encoder from %s ..." % enc_path)
+            enc_reload = torch.load(
+                enc_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+            enc_reload = enc_reload['model' if 'model' in enc_reload else 'encoder']
+            if all([k.startswith('module.') for k in enc_reload.keys()]):
+                enc_reload = {k[len('module.'):]: v for k,
+                              v in enc_reload.items()}
+            encoder.load_state_dict(enc_reload)
+
+        # reload decoder
+        if dec_path != '':
+            logger.info("Reloading decoder from %s ..." % dec_path)
+            dec_reload = torch.load(
+                dec_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+            dec_reload = dec_reload['model' if 'model' in dec_reload else 'decoder']
+            if all([k.startswith('module.') for k in dec_reload.keys()]):
+                dec_reload = {k[len('module.'):]: v for k,
+                              v in dec_reload.items()}
+            for i in range(params.n_layers):
+                for name in DECODER_ONLY_PARAMS:
+                    if name % i not in dec_reload:
+                        logger.warning(
+                            "Parameter %s not found." % (name % i))
+                        dec_reload[name % i] = decoder.state_dict()[
+                            name % i]
+            decoder.load_state_dict(dec_reload)
+
+    logger.debug("Encoder: {}".format(encoder))
+    logger.debug("Decoder: {}".format(decoder))
+    logger.info("Number of parameters (encoder): %i" % sum(
+        [p.numel() for p in encoder.parameters() if p.requires_grad]))
+    logger.info("Number of parameters (decoder): %i" % sum(
+        [p.numel() for p in decoder.parameters() if p.requires_grad]))
+
+    return encoder.cuda(), decoder.cuda()
+
+
+def build_clts_xencoder_model(params, dico):
+    """
+    pretrained cross-lingual as encoder
+    """
+
+    ########### build cross lingual encoder ###########
+    xencoder = TransformerModel(
+        params, dico, is_encoder=True, with_output=True)
+
+    # reload pretrained word embeddings
+    if params.reload_emb != '':
+        word2id, embeddings = load_embeddings(params.reload_emb, params)
+        set_pretrain_emb(xencoder, dico, word2id, embeddings)
+
+    # reload a pretrained model
+
+    # print(params)
+    # input()
+    if params.reload_xencoder != '':
+        logger.info("Reloading model from %s ..." % params.reload_xencoder)
+        reloaded = torch.load(params.reload_xencoder, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+        reloaded = reloaded['model' if 'model' in reloaded else 'xencoder']
+
+        if all([k.startswith('module.') for k in reloaded.keys()]):
+            reloaded = {k[len('module.'):]: v for k, v in reloaded.items()}
+
+        xencoder.load_state_dict(reloaded)
+
+    ########### End of building cross lingual encoder ###########
+
+    ########## build text summarization transformer ##########
+    ts_encoder = CrossLingualTransformerModel(
+        params, dico, is_encoder=True, with_output=False)
+    ts_decoder = CrossLingualTransformerModel(
+        params, dico, is_encoder=False, with_output=True)
+    # ts_decoder = TransformerModel(params, dico, is_encoder=False, with_output=True)
+
+
+    # reload a pretrained model
+    if params.reload_model != '':
+        enc_path, dec_path = params.reload_model.split(',')
+        assert not (enc_path == '' and dec_path == '')
+
+        # reload encoder
+        if enc_path != '':
+            logger.info("Reloading encoder from %s ..." % enc_path)
+            enc_reload = torch.load(enc_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+            enc_reload = enc_reload['model' if 'model' in enc_reload else 'encoder']
+            if all([k.startswith('module.') for k in enc_reload.keys()]):
+                enc_reload = {k[len('module.'):]: v for k,
+                              v in enc_reload.items()}
+            ts_encoder.load_state_dict(enc_reload)
+
+        # reload decoder
+        if dec_path != '':
+            logger.info("Reloading decoder from %s ..." % dec_path)
+            dec_reload = torch.load(
+                dec_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+            dec_reload = dec_reload['model' if 'model' in dec_reload else 'decoder']
+            if all([k.startswith('module.') for k in dec_reload.keys()]):
+                dec_reload = {k[len('module.'):]: v for k,
+                              v in dec_reload.items()}
+            for i in range(params.n_layers):
+                for name in DECODER_ONLY_PARAMS:
+                    if name % i not in dec_reload:
+                        logger.warning("Parameter %s not found." % (name % i))
+                        dec_reload[name % i] = ts_decoder.state_dict()[
+                            name % i]
+            ts_decoder.load_state_dict(dec_reload)
+    ########### End of building text summarization transformer ###########
+
+    logger.debug("xencoder: {}".format(xencoder))
+    logger.debug("ts_encoder: {}".format(ts_encoder))
+    logger.debug("ts_decoder: {}".format(ts_decoder))
+    logger.info("Number of parameters (xencoder): %i" % sum(
+        [p.numel() for p in xencoder.parameters() if p.requires_grad]))
+    logger.info("Number of parameters (ts_encoder): %i" % sum(
+        [p.numel() for p in ts_encoder.parameters() if p.requires_grad]))
+    logger.info("Number of parameters (ts_decoder): %i" % sum(
+        [p.numel() for p in ts_decoder.parameters() if p.requires_grad]))
+
+    return xencoder.cuda(),  ts_encoder.cuda(), ts_decoder.cuda()
+
+
+def build_clts_elmo_model(params, dico):
+    """
+    elmo-style cross-lingual encoder
+    """
+
+    ########### build elmo encoder ###########
+    xencoder = TransformerModel(
+        params, dico, is_encoder=True, with_output=True)
+
+
+
+    # reload pretrained word embeddings
+    if params.reload_emb != '':
+        word2id, embeddings = load_embeddings(params.reload_emb, params)
+        set_pretrain_emb(xencoder, dico, word2id, embeddings)
+
+    # reload a pretrained model
+    if params.reload_xencoder != '':
+        logger.info("Reloading model from %s ..." % params.reload_xencoder)
+        reloaded = torch.load(params.reload_xencoder, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+        reloaded = reloaded['model' if 'model' in reloaded else 'xencoder']
+        if all([k.startswith('module.') for k in reloaded.keys()]):
+            reloaded = {k[len('module.'):]: v for k, v in reloaded.items()}
+
+        xencoder.load_state_dict(reloaded)
+
+    elmo = ElmoTokenEmbedder(xencoder, params)
+    elmo.reset_parameters()
+
+    if params.reload_elmo != '':
+        logger.info("Reloading model from %s ..." % params.reload_elmo)
+        reloaded = torch.load(params.reload_elmo, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+        reloaded = reloaded['model' if 'model' in reloaded else 'xencoder']
+        if all([k.startswith('module.') for k in reloaded.keys()]):
+            reloaded = {k[len('module.'):]: v for k, v in reloaded.items()}
+
+        elmo.load_state_dict(reloaded)
+
+    #########################################
+
+    ########## build text summarization transformer ##########
+    ts_encoder = CrossLingualTransformerModel(
+        params, dico, is_encoder=True, with_output=False)
+    ts_decoder = CrossLingualTransformerModel(
+        params, dico, is_encoder=False, with_output=True)
+
+    # reload a pretrained model
+    if params.reload_model != '':
+        enc_path, dec_path = params.reload_model.split(',')
+        assert not (enc_path == '' and dec_path == '')
+
+        # reload encoder
+        if enc_path != '':
+            logger.info("Reloading encoder from %s ..." % enc_path)
+            enc_reload = torch.load(
+                enc_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+            enc_reload = enc_reload['model' if 'model' in enc_reload else 'encoder']
+            if all([k.startswith('module.') for k in enc_reload.keys()]):
+                enc_reload = {k[len('module.'):]: v for k,
+                              v in enc_reload.items()}
+            ts_encoder.load_state_dict(enc_reload)
+
+        # reload decoder
+        if dec_path != '':
+            logger.info("Reloading decoder from %s ..." % dec_path)
+            dec_reload = torch.load(
+                dec_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+            dec_reload = dec_reload['model' if 'model' in dec_reload else 'decoder']
+            if all([k.startswith('module.') for k in dec_reload.keys()]):
+                dec_reload = {k[len('module.'):]: v for k,
+                              v in dec_reload.items()}
+            for i in range(params.n_layers):
+                for name in DECODER_ONLY_PARAMS:
+                    if name % i not in dec_reload:
+                        logger.warning("Parameter %s not found." % (name % i))
+                        dec_reload[name % i] = ts_decoder.state_dict()[
+                            name % i]
+            ts_decoder.load_state_dict(dec_reload)
+    ############################################################
+
+    logger.debug("elmo: {}".format(elmo))
+    logger.debug("ts_encoder: {}".format(ts_encoder))
+    logger.debug("ts_decoder: {}".format(ts_decoder))
+    logger.info("Number of parameters (elmo): %i" % sum(
+        [p.numel() for p in elmo.parameters() if p.requires_grad]))
+    logger.info("Number of parameters (ts_encoder): %i" % sum(
+        [p.numel() for p in ts_encoder.parameters() if p.requires_grad]))
+    logger.info("Number of parameters (ts_decoder): %i" % sum(
+        [p.numel() for p in ts_decoder.parameters() if p.requires_grad]))
+
+    return elmo.cuda(),  ts_encoder.cuda(), ts_decoder.cuda()
+
+
+def build_unsupervised_clts_model(params, dico, en_dico, zh_dico):
+    """
+    Build model.
+    """
+    cl_encoder = TransformerModel(params, dico, is_encoder=True, with_output=True)
+    en_decoder = CrossLingualTransformerModel(params, en_dico, is_encoder=False, with_output=True)
+    zh_decoder = CrossLingualTransformerModel(params, zh_dico, is_encoder=False, with_output=True)
+
+    if params.share_encdec_emb:
+        decoder.embeddings.weight = encoder.embeddings.weight
+
+    # reload a pretrained model
+    if params.reload_model != '':
+        enc_path, dec_path = params.reload_model.split(',')
+        assert not (enc_path == '' and dec_path == '')
+
+        # reload encoder
+        if enc_path != '':
+            logger.info("Reloading encoder from %s ..." % enc_path)
+            enc_reload = torch.load(
+                enc_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+            enc_reload = enc_reload['model' if 'model' in enc_reload else 'encoder']
+            if all([k.startswith('module.') for k in enc_reload.keys()]):
+                enc_reload = {k[len('module.'):]: v for k,
+                              v in enc_reload.items()}
+            cl_encoder.load_state_dict(enc_reload)
+
+        # reload decoder
+        # if dec_path != '':
+        #     logger.info("Reloading decoder from %s ..." % dec_path)
+        #     dec_reload = torch.load(
+        #         dec_path, map_location=lambda storage, loc: storage.cuda(params.local_rank))
+        #     dec_reload = dec_reload['model' if 'model' in dec_reload else 'decoder']
+        #     if all([k.startswith('module.') for k in dec_reload.keys()]):
+        #         dec_reload = {k[len('module.'):]: v for k,
+        #                       v in dec_reload.items()}
+        #     for i in range(params.n_layers):
+        #         for name in DECODER_ONLY_PARAMS:
+        #             if name % i not in dec_reload:
+        #                 logger.warning(
+        #                     "Parameter %s not found." % (name % i))
+        #                 dec_reload[name % i] = decoder.state_dict()[
+        #                     name % i]
+        #     decoder.load_state_dict(dec_reload)
+
+    logger.debug("CL Encoder: {}".format(cl_encoder))
+    logger.debug("EN Decoder: {}".format(en_decoder))
+    logger.debug("ZH Decoder: {}".format(zh_decoder))
+    logger.info("Number of parameters (cl_encoder): %i" % sum(
+        [p.numel() for p in cl_encoder.parameters() if p.requires_grad]))
+    logger.info("Number of parameters (en_decoder): %i" % sum(
+        [p.numel() for p in en_decoder.parameters() if p.requires_grad]))
+    logger.info("Number of parameters (zh_decoder): %i" % sum(
+        [p.numel() for p in zh_decoder.parameters() if p.requires_grad]))
+
+    return cl_encoder.cuda(), en_decoder.cuda(), zh_decoder.cuda()

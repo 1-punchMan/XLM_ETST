@@ -1,16 +1,11 @@
 OUTPATH=$PWD/data/processed/clts-zh-en/clean_shared_emb
+DUMPED=$PWD/dumped/clts-elmo-zhen/sbcfjivn4w
+PRETRAINED=$DUMPED/best-valid_zh-en_mt_rouge1.pth
 
-
-# PRETRAINED=$PWD/dumped/xlm_mlm_enzh/93kejnkflp/best-valid_en_mlm_ppl.pth
-
-EXPNAME=sbcfjivn4w
-DUMPED=$PWD/dumped/clts-elmo-zhen/$EXPNAME
-RELOAD_MODEL=$DUMPED/best-valid_zh-en_mt_rouge1.pth
-# RELOAD_CHECKPOINT=$DUMPED/checkpoint.pth
 CUDA_VISIBLE_DEVICES=0 python train.py --exp_name 'clts-elmo-zhen' \
  --dump_path ./dumped \
- --reload_elmo "$RELOAD_MODEL" \
- --reload_model "$RELOAD_MODEL,$RELOAD_MODEL" \
+ --reload_elmo "$PRETRAINED" \
+ --reload_model "$PRETRAINED,$PRETRAINED" \
  --data_path $OUTPATH  \
  --lgs 'zh-en'  \
  --mt_steps 'zh-en'  \
@@ -60,5 +55,4 @@ CUDA_VISIBLE_DEVICES=0 python train.py --exp_name 'clts-elmo-zhen' \
  --elmo_train_gamma true \
  --eval_only true \
  --beam 4
-#  --reload_checkpoint "$RELOAD_CHECKPOINT"
 

@@ -1,13 +1,11 @@
-OUTPATH=$PWD/data/processed/clts-zh-en/shared_emb
-
-
+OUTPATH=$PWD/data/processed/clts-zh-en/clean_shared_emb
 DUMPED=$PWD/dumped/clts-ft-zhen/q5j5n3bbds
-RELOAD_MODEL=$DUMPED/best-valid_zh-en_mt_bleu.pth
-RELOAD_CHECKPOINT=$DUMPED/checkpoint.pth
-# export NGPU=2; python -m torch.distributed.launch --nproc_per_node=$NGPU
+PRETRAINED=$DUMPED/best-valid_zh-en_mt_bleu.pth
+
+
 CUDA_VISIBLE_DEVICES=0 python train.py --exp_name 'clts-ft-zhen' \
  --dump_path ./dumped \
- --reload_model "$RELOAD_MODEL,$RELOAD_MODEL" \
+ --reload_model "$PRETRAINED,$PRETRAINED" \
  --data_path $OUTPATH  \
  --lgs 'zh-en'  \
  --mt_steps 'zh-en'  \
@@ -35,5 +33,4 @@ CUDA_VISIBLE_DEVICES=0 python train.py --exp_name 'clts-ft-zhen' \
  --beam_size 4 \
  --eval_only true \
  --batch_size 32
-#  --reload_checkpoint "$RELOAD_CHECKPOINT" \
 

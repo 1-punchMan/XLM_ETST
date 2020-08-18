@@ -1,5 +1,11 @@
 OUTPATH=$PWD/data/processed/clts-zh-en/clean_shared_emb
 
+#### if you want to resume a training process, define DUMPED, PRETRAINED, RELOAD_CHECKPOINT and uncomment the last 2 lines in training script
+
+# DUMPED=$PWD/dumped/clts-ft-zhen/grmogu7fnf
+# PRETRAINED=$DUMPED/best-valid_zh-en_mt_rouge1.pth
+# RELOAD_CHECKPOINT=$DUMPED/checkpoint.pth
+
 CUDA_VISIBLE_DEVICES=1 python train.py --exp_name 'clts-baseline-zhen' \
  --dump_path ./dumped \
  --data_path $OUTPATH  \
@@ -25,11 +31,11 @@ CUDA_VISIBLE_DEVICES=1 python train.py --exp_name 'clts-baseline-zhen' \
  --amp 1 \
  --accumulate_gradients 2 \
  --max_vocab 60000 \
- --share_encdec_emb false  \
+ --share_encdec_emb true  \
  --share_inout_emb true \
  --label_smoothing 0.0
  
 #  --src_max_vocab 25000 \
 #  --tgt_max_vocab 30000
-#  --reload_model 'dumped/clts_zhen-mlm_enzh-scratch/dyy2ekhp64/best-valid_zh-en_mt_bleu.pth,dumped/clts_zhen-mlm_enzh-scratch/dyy2ekhp64/best-valid_zh-en_mt_bleu.pth' \
-#  --reload_checkpoint 'dumped/clts_zhen-mlm_enzh-scratch/dyy2ekhp64/checkpoint.pth'
+#  --reload_model "$PRETRAINED,$PRETRAINED" \
+#  --reload_checkpoint "$RELOAD_CHECKPOINT"

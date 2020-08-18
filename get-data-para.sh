@@ -166,17 +166,15 @@ if [ $pair == "en-vi" ]; then
   unzip -u $PARA_PATH/download.php?f=OpenSubtitles2018%2Fen-vi.txt.zip -d $PARA_PATH
 fi
 
-##### Deleted by Chiamin #####
 # en-zh
-# if [ $pair == "en-zh" ]; then
-#   echo "Download parallel data for English-Chinese"
-#   # OpenSubtitles 2016
-#   # wget -c http://opus.nlpl.eu/download.php?f=OpenSubtitles2016%2Fen-zh.txt.zip -P $PARA_PATH
-#   # MultiUN
-#   wget -c http://opus.nlpl.eu/download.php?f=MultiUN%2Fen-zh.txt.zip -P $PARA_PATH
-#   unzip -u $PARA_PATH/download.php?f=MultiUN%2Fen-zh.txt.zip -d $PARA_PATH
-# fi
-###### End Deleted #####
+if [ $pair == "en-zh" ]; then
+  echo "Download parallel data for English-Chinese"
+  # OpenSubtitles 2016
+  # wget -c http://opus.nlpl.eu/download.php?f=OpenSubtitles2016%2Fen-zh.txt.zip -P $PARA_PATH
+  # MultiUN
+  wget -c http://opus.nlpl.eu/download.php?f=MultiUN%2Fen-zh.txt.zip -P $PARA_PATH
+  unzip -u $PARA_PATH/download.php?f=MultiUN%2Fen-zh.txt.zip -d $PARA_PATH
+fi
 
 # for en-zh, download cwmt2020 (cwmt.en, cwmt.zh) manually to $PARA_PATH. 
 

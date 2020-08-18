@@ -1,8 +1,10 @@
 OUTPATH=$PWD/data/processed/XLM_en_zh/50k
 
-DUMPED=dumped/xlm_mlm_enzh/vbqnrflui4
-RELOAD_MODEL=$DUMPED/best-valid_en_mlm_ppl.pth
-RELOAD_CHECKPOINT=$DUMPED/checkpoint.pth
+
+#### if you want to resume a training process, define DUMPED, RELOAD_MODEL, RELOAD_CHECKPOINT and uncomment the last two lines in training script
+# DUMPED=dumped/xlm_mlm_enzh/vbqnrflui4
+# RELOAD_MODEL=$DUMPED/best-valid_en_mlm_ppl.pth
+# RELOAD_CHECKPOINT=$DUMPED/checkpoint.pth
 
 CUDA_VISIBLE_DEVICES=1 python train.py \
  --exp_name 'xlm_mlm_enzh'  \
@@ -27,6 +29,6 @@ CUDA_VISIBLE_DEVICES=1 python train.py \
  --fp16 true \
  --amp 1 \
  --accumulate_gradients 4 \
- --max_vocab 60000 \
- --reload_checkpoint "$RELOAD_CHECKPOINT" \
- --reload_model "$RELOAD_MODEL"
+ --max_vocab 60000
+#  --reload_checkpoint "$RELOAD_CHECKPOINT" \
+#  --reload_model "$RELOAD_MODEL"

@@ -1,21 +1,20 @@
-# OUTPATH=$PWD/data/processed/clts-zh-en/clean_shared_emb
-OUTPATH=$PWD/data/processed/clts_xnli15-zh-en/shared_emb
+OUTPATH=$PWD/data/processed/clts-zh-en/clean_shared_emb
+# OUTPATH=$PWD/data/processed/clts_xnli15-zh-en/shared_emb
 
 
-# PRETRAINED=$PWD/dumped/xlm_mlm_enzh/ecd8gu1a43/best-valid_en_mlm_ppl.pth
-PRETRAINED=$PWD/pretrained_models/mlm_xnli15_1024/mlm_xnli15_1024.pth
+PRETRAINED=$PWD/dumped/xlm_mlm_enzh/ecd8gu1a43/best-valid_en_mlm_ppl.pth
+# PRETRAINED=$PWD/pretrained_models/mlm_xnli15_1024/mlm_xnli15_1024.pth
 
-DUMPED=$PWD/dumped/clts-xencoder-zhen/9bhrodp5t8
-RELOAD_MODEL=$DUMPED/best-valid_zh-en_mt_rouge1.pth
-RELOAD_CHECKPOINT=$DUMPED/checkpoint.pth
-# export NGPU=2; python -m torch.distributed.launch --nproc_per_node=$NGPU
+#### if you want to resume a training process, define DUMPED, PRETRAINED, RELOAD_CHECKPOINT and uncomment the last 2 lines in training script
+# DUMPED=$PWD/dumped/clts-xenc-zhen/9bhrodp5t8
+# PRETRAINED=$DUMPED/best-valid_zh-en_mt_rouge1.pth
+# RELOAD_CHECKPOINT=$DUMPED/checkpoint.pth
 
 # ar-bg-de-el-en-es-fr-hi-ru-sw-th-tr-ur-vi-zh
-CUDA_VISIBLE_DEVICES=0 python train.py --exp_name 'clts-xencoder-zhen' \
+CUDA_VISIBLE_DEVICES=0 python train.py --exp_name 'clts-xenc-zhen' \
  --dump_path ./dumped \
  --data_path $OUTPATH  \
- --reload_xencoder "$RELOAD_MODEL" \
- --reload_checkpoint "$RELOAD_CHECKPOINT" \
+ --reload_xencoder "$PRETRAINED" \
  --lgs 'ar-bg-de-el-en-es-fr-hi-ru-sw-th-tr-ur-vi-zh'  \
  --mt_steps 'zh-en'  \
  --encoder_only false \
@@ -49,12 +48,6 @@ CUDA_VISIBLE_DEVICES=0 python train.py --exp_name 'clts-xencoder-zhen' \
  --accumulate_gradients 20 \
  --label_smoothing 0.0
 #  --reload_checkpoint "$RELOAD_CHECKPOINT" \
-#  --reload_model "$RELOAD_MODEL,$RELOAD_MODEL"
-# --lgs 'zh-en'  \
-#  --mt_steps 'zh-en'  \
-#  --encoder_only false \
-#  --emb_dim 512  \
-#  --n_layers 6  \
-#  --n_heads 8  \
+#  --reload_model "$PRETRAINED,$PRETRAINED"
 
 

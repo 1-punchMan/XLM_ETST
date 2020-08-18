@@ -7,15 +7,14 @@
 
 # set -e
 
-# CODES=50000 
-CODES=80000 
+CODES=50000 
 N_THREADS=16    # number of threads in data preprocessing
 
 
-# RELOAD_CODES=data/processed/XLM_en_zh/50k/codes
-# RELOAD_VOCAB=data/processed/XLM_en_zh/50k/vocab.en-zh
-RELOAD_CODES=pretrained_models/mlm_xnli15_1024/codes_xnli_15
-RELOAD_VOCAB=pretrained_models/mlm_xnli15_1024/vocab_xnli_15
+RELOAD_CODES=data/processed/XLM_en_zh/50k/codes
+RELOAD_VOCAB=data/processed/XLM_en_zh/50k/vocab.en-zh
+# RELOAD_CODES=pretrained_models/mlm_xnli15_1024/codes_xnli_15
+# RELOAD_VOCAB=pretrained_models/mlm_xnli15_1024/vocab_xnli_15
 
 #
 # Check parameters
@@ -35,8 +34,8 @@ TGT=en
 MAIN_PATH=$PWD
 TOOLS_PATH=$PWD/tools
 DATA_PATH=$PWD/data
-CLTS_PATH=$DATA_PATH/clts_xnli15/$SRC-$TGT
-PROC_PATH=$DATA_PATH/processed/clts_xnli15-$SRC-$TGT/shared_emb
+CLTS_PATH=$DATA_PATH/clts/$SRC-$TGT
+PROC_PATH=$DATA_PATH/processed/clts-$SRC-$TGT/50k
 
 # create paths
 mkdir -p $TOOLS_PATH
@@ -179,16 +178,22 @@ for t in $outerloop; do
     if [ ! -f $PROC_PATH/$t.en-zh.$lg.pth ]; then    
       BPE=$PROC_PATH/$t.en-zh.$lg.bpe      
       echo "Binarizing $BPE data into $PROC_PATH/$t.en-zh.$lg.pth"
+
+      ##### Use the different vocabulary lists to binarize src and tgt data  #####
       # if [ "$lg" == "zh" ]; then
       #   python $MAIN_PATH/preprocess.py $SRC_VOCAB $BPE
       # else
       #   python $MAIN_PATH/preprocess.py $TGT_VOCAB $BPE
       # fi
+      ############################################################################
+      
+      ##### Use the shared vocabulary list to binarize src and tgt data  #####
       python $MAIN_PATH/preprocess.py $FULL_VOCAB $BPE
+      ########################################################################
     fi
   done
 done
-#################################################
+##############################
 
 
 #

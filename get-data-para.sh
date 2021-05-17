@@ -19,7 +19,7 @@ PARA_PATH=$PWD/data/para
 
 # tools paths
 TOOLS_PATH=$PWD/tools
-TOKENIZE=$TOOLS_PATH/tokenize.sh
+TOKENIZE=$TOOLS_PATH/zh_char_tokenize.sh
 LOWER_REMOVE_ACCENT=$TOOLS_PATH/lowercase_and_remove_accent.py
 
 # install tools
@@ -205,6 +205,8 @@ split_data() {
     shuf --random-source=<(get_seeded_random 42) $1 | tail -5000                > $4;
 }
 for lg in $(echo $pair | sed -e 's/\-/ /g'); do
-  split_data $PARA_PATH/$pair.$lg.all $PARA_PATH/$pair.$lg.train $PARA_PATH/$pair.$lg.valid $PARA_PATH/$pair.$lg.test
+  if [ ! -f $PARA_PATH/$pair.$lg.train ]; then    
+    split_data $PARA_PATH/$pair.$lg.all $PARA_PATH/$pair.$lg.train $PARA_PATH/$pair.$lg.valid $PARA_PATH/$pair.$lg.test
+  fi
 done
 

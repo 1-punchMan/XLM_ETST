@@ -11,7 +11,7 @@ import subprocess
 from collections import OrderedDict
 import numpy as np
 import torch
-import rouge
+from rouge import FilesRouge
 
 from ..utils import to_cuda, restore_segmentation, concat_batches
 from ..model.memory import HashingMemory
@@ -599,10 +599,6 @@ class EncDecEvaluator(Evaluator):
             for metric, result in sorted(rouge_f1.items(), key=lambda x: x[0]):
                 logger.info("%s %s %s : %f" % (metric.upper(), hyp_path, ref_path, result))
                 scores['%s_%s-%s_mt_rouge%s' % (data_set, lang1, lang2, metric[-1].upper())] = result
-
-                if params.eval_only is False:
-                    # only print rouge-1 in training time
-                    break
         #######################################
 
             
@@ -654,21 +650,8 @@ def eval_rouge_f1(ref, hyp):
     assert os.path.isfile(hyp)
     assert os.path.isfile(ref) or os.path.isfile(ref + '0')
 
-    evaluator = rouge.Rouge(metrics=['rouge-n', 'rouge-l'],
-                        max_n=4,
-                        limit_length=True,
-                        length_limit=100,
-                        length_limit_type='words',
-                        apply_avg=True,
-                        apply_best=False,
-                        alpha=0.5,  # Default F1_score
-                        weight_factor=1.2,
-                        stemming=True)
-
-    all_hypothesis = open(hyp, 'r', encoding='utf-8').read().strip().split('\n')
-    all_references = open(ref, 'r', encoding='utf-8').read().strip().split('\n')
-
-    scores = evaluator.get_scores(all_hypothesis, all_references)
+    files_rouge = FilesRouge()
+    scores = files_rouge.get_scores(hyp, ref, avg=True)
     rouge_f1 = {metric.upper(): results['f'] * 100. for metric, results in sorted(scores.items(), key=lambda x: x[0])}
     # rouge_f1 = {
     #     'ROUGE-1': scores['rouge-1']['f']  * 100.,
@@ -1193,7 +1176,7 @@ class Seq2SeqEvaluator(object):
                     data_set, l1l2, mem_name), mem_att, params.mem_size)
 
 
-class MyEncDecEvaluator(MyEvaluator):
+class MyEncDecEvaluator(Evaluator):
 
     def __init__(self, trainer, data, params):
         """

@@ -110,7 +110,7 @@ class Trainer(object):
         self.best_metrics = {metric: (-1e12 if biggest else 1e12) for (metric, biggest) in self.metrics}
 
         # training statistics
-        self.epoch = 0
+        self.epoch = 1
         self.n_iter = 0
         self.n_total_iter = 0
         self.n_sentences = 0
@@ -534,6 +534,7 @@ class Trainer(object):
             'n_total_iter': self.n_total_iter,
             'best_metrics': self.best_metrics,
             'best_stopping_criterion': self.best_stopping_criterion,
+            'decrease_counts': self.decrease_counts
         }
 
         for name in self.MODEL_NAMES:
@@ -590,6 +591,7 @@ class Trainer(object):
         self.n_total_iter = data['n_total_iter']
         self.best_metrics = data['best_metrics']
         self.best_stopping_criterion = data['best_stopping_criterion']
+        self.decrease_counts = data['decrease_counts']
         logger.warning(f"Checkpoint reloaded. Resuming at epoch {self.epoch} / iteration {self.n_total_iter} ...")
 
     def save_periodic(self):
@@ -631,12 +633,12 @@ class Trainer(object):
                 logger.info("New best validation score: %f" % self.best_stopping_criterion)
                 self.decrease_counts = 0
             else:
+                self.decrease_counts += 1
                 logger.info("Not a better validation score (%i / %i)."
                             % (self.decrease_counts, self.decrease_counts_max))
-                self.decrease_counts += 1
-            if self.decrease_counts > self.decrease_counts_max:
-                logger.info("Stopping criterion has been below its best value for more "
-                            "than %i epochs. Ending the experiment..." % self.decrease_counts_max)
+                logger.info("Best validation score: %f" % self.best_stopping_criterion)
+            if self.decrease_counts >= self.decrease_counts_max:
+                logger.info("Stopping criterion has been below its best value for %i epochs. Ending the experiment..." % self.decrease_counts_max)
                 if self.params.multi_gpu and 'SLURM_JOB_ID' in os.environ:
                     os.system('scancel ' + os.environ['SLURM_JOB_ID'])
                 exit()

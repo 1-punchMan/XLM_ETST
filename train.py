@@ -232,7 +232,7 @@ def get_parser():
     parser.add_argument("--eval_rouge", type=bool_flag, default=False, help="Evaluate ROUGE-1 F1 score during TS training")
     parser.add_argument("--label_smoothing", type=float, default=0., help="Label smoothing loss (0 to disable)")
 
-    parser.add_argument("--separated_vocab", type=bool_flag, default=False, help"Use different vocabulary/dictionary for encoder and decoder. If True, shared_encdec_emb will always be False")
+    parser.add_argument("--separated_vocab", type=bool_flag, default=False, help="Use different vocabulary/dictionary for encoder and decoder. If True, shared_encdec_emb will always be False")
 
 
     # separated vocabulary/dictionary
@@ -616,11 +616,11 @@ if __name__ == '__main__':
     check_model_params(params)
 
     # run experiment
-    if 'mlm' in params.exp_name or 'baseline' in params.exp_name or 'ft' in params.exp_name:
-        main(params)
-    elif 'xencoder' in params.exp_name:
+    if 'xencoder' in params.exp_name:
         clts_xencoder_main(params)
     elif 'elmo' in params.exp_name:
         clts_elmo_main(params)
+    else:
+        main(params)
 
     # seq2seq_main(params)

@@ -530,6 +530,7 @@ class TransformerModel(nn.Module):
             `get_scores` is a boolean specifying whether we need to return scores
         """
 
+        pred_mask = pred_mask.bool()    # 舊版pytorch使用byte型態，新版會報warning，影響輸出，加此行以避免warning。
         masked_tensor = tensor[pred_mask.unsqueeze(
             -1).expand_as(tensor)].view(-1, self.dim)
 
@@ -1089,6 +1090,7 @@ class CrossLingualTransformerModel(nn.Module):
             tensor = self.sum2xenc(tensor)
         # print(tensor.size())
 
+        pred_mask = pred_mask.bool()    # 舊版pytorch使用byte型態，新版會報warning，影響輸出，加此行以避免warning。
         masked_tensor = tensor[pred_mask.unsqueeze(
             -1).expand_as(tensor)].view(-1, tensor.size(-1))
         scores, loss = self.pred_layer(masked_tensor, y, get_scores)
@@ -1605,6 +1607,7 @@ class MyTransformerModel(nn.Module):
             `y` is a LongTensor of shape (pred_mask.sum(),)
             `get_scores` is a boolean specifying whether we need to return scores
         """
+        pred_mask = pred_mask.bool()    # 舊版pytorch使用byte型態，新版會報warning，影響輸出，加此行以避免warning。
         masked_tensor = tensor[pred_mask.unsqueeze(
             -1).expand_as(tensor)].view(-1, self.dim)
         scores, loss = self.pred_layer(masked_tensor, y, get_scores)

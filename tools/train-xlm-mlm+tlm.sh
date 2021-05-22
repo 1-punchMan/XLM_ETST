@@ -1,5 +1,6 @@
 OUTPATH=data/processed/XLM_en_zh/word-char_60k
-export CUDA_VISIBLE_DEVICES=0
+CHPTPATH="/home/zchen/CLTS/dumped/xlm_en_zh/2ziw0mieyg/checkpoint.pth"
+export CUDA_VISIBLE_DEVICES=1
 # export NGPU=2; python -m torch.distributed.launch --nproc_per_node=$NGPU
 python train.py\
     --exp_name 'xlm_en_zh'  \
@@ -20,5 +21,6 @@ python train.py\
     --epoch_size 300000   \
     --max_epoch 100000  \
     --validation_metrics _valid_en_mlm_ppl  \
-    --stopping_criterion _valid_en_mlm_ppl,25
-        # --reload_checkpoint 
+    --eval_only false\
+    --stopping_criterion _valid_en_mlm_ppl,25\
+    --reload_checkpoint $CHPTPATH

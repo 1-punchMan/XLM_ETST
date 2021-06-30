@@ -224,14 +224,15 @@ def load_para_data(params, data):
             
             ########## added by chiamin ##########
             # For reducing memory usage 
-            else:
-                dataset.remove_long_sentences(params.max_len)
+            # else:
+            #     dataset.remove_long_sentences(params.max_len)
             ######################################
 
 
             # for validation and test set, enumerate sentence per sentence
             if splt != 'train':
                 dataset.tokens_per_batch = -1
+                dataset.remove_long_sentences(params.max_len)
 
             # if there are several processes on the same machine, we can split the dataset
             if splt == 'train' and params.n_gpu_per_node > 1 and params.split_data:

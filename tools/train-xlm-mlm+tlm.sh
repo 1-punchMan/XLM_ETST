@@ -16,11 +16,12 @@ python train.py\
     --attention_dropout 0.1  \
     --gelu_activation true \
     --batch_size 32  \
-    --bptt 256   \
+    --bptt 512   \
+    --max_len 256  \
     --optimizer adam,lr=0.0001  \
     --epoch_size 300000   \
     --max_epoch 100000  \
     --validation_metrics _valid_en_mlm_ppl  \
     --eval_only false\
-    --stopping_criterion _valid_en_mlm_ppl,25\
-    --reload_checkpoint $CHPTPATH
+    --stopping_criterion _valid_en_mlm_ppl,25
+    # --reload_checkpoint $CHPTPATH

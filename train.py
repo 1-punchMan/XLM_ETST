@@ -616,7 +616,7 @@ if __name__ == '__main__':
     check_model_params(params)
 
     # run experiment
-    if 'xencoder' in params.exp_name:
+    if 'xenc' in params.exp_name:
         clts_xencoder_main(params)
     elif 'elmo' in params.exp_name:
         clts_elmo_main(params)

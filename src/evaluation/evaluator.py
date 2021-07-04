@@ -752,7 +752,7 @@ class XLMCLTSEncDecEvaluator(Evaluator):
 
             # generate translation - translate / convert to text
             if eval_bleu:
-                max_len = int(1.5 * len1.max().item() + 10)
+                max_len = min(int(1.5 * len1.max().item() + 10), params.max_len)
                 if params.beam_size == 1:
                     generated, lengths = decoder.generate(enc1, len1, lang2_id, max_len=max_len, xencoder=_xencoder)
                     # generated, lengths = decoder.generate(enc1, len1, lang2_id, max_len=max_len)
@@ -826,10 +826,6 @@ class XLMCLTSEncDecEvaluator(Evaluator):
             for metric, result in sorted(rouge_f1.items(), key=lambda x: x[0]):
                 logger.info("%s %s %s : %f" % (metric.upper(), hyp_path, ref_path, result))
                 scores['%s_%s-%s_mt_rouge%s' % (data_set, lang1, lang2, metric[-1].upper())] = result
-
-                if params.eval_only is False:
-                    # only print rouge-1 in training time
-                    break
         #######################################
 
         

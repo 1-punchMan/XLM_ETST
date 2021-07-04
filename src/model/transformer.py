@@ -1142,7 +1142,7 @@ class CrossLingualTransformerModel(nn.Module):
         cache = {'slen': 0}
 
         while cur_len < max_len:
-
+            
             # compute word scores
 
             tensor = self.forward(

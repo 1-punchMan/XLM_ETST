@@ -1,12 +1,12 @@
 #
-# Usage: get-data-clts-word-char.sh lg1-lg2
+# Usage: train-clts-ft.sh lg1-lg2
 #
 
 lgs=$1
 OUTPATH=data/processed/clts-$lgs/word-char_60k
 export CUDA_VISIBLE_DEVICES=1
 
-### reload the pretrained XLM
+# reload the pretrained XLM
 PRETRAINED="/home/zchen/CLTS/dumped/xlm_en_zh/3qt23aco6c/best-valid_en_mlm_ppl.pth"
 
 CHECKPOINT="/home/zchen/CLTS/dumped/clts-ft-en-zh/udaq91nglj/checkpoint.pth"

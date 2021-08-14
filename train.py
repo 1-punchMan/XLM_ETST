@@ -67,6 +67,8 @@ def get_parser():
                         help="Use sinusoidal embeddings")
     parser.add_argument("--use_lang_emb", type=bool_flag, default=True,
                         help="Use language embedding")
+    parser.add_argument("--real", type=bool_flag, default=False,
+                        help="Residual Attention Layer")
         
     
 
@@ -152,6 +154,8 @@ def get_parser():
     parser.add_argument("--validation_metrics", type=str, default="",
                         help="Validation metrics")
     parser.add_argument("--accumulate_gradients", type=int, default=1,
+                        help="Accumulate model gradients over N iterations (N times larger batch sizes)")
+    parser.add_argument("--sd_penalty", type=bool_flag, default=False,
                         help="Accumulate model gradients over N iterations (N times larger batch sizes)")
 
     # training coefficients
@@ -467,7 +471,7 @@ def seq2seq_main(params):
 
 
 def clts_xencoder_main(params):
-
+    
     # initialize the multi-GPU / multi-node training
     init_distributed_mode(params)
 

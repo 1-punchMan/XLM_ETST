@@ -125,7 +125,8 @@ class Trainer(object):
             [('PC-%s-%s' % (l1, l2), []) for l1, l2 in params.pc_steps] +
             [('AE-%s' % lang, []) for lang in params.ae_steps] +
             [('MT-%s-%s' % (l1, l2), []) for l1, l2 in params.mt_steps] +
-            [('BT-%s-%s-%s' % (l1, l2, l3), []) for l1, l2, l3 in params.bt_steps]
+            [('BT-%s-%s-%s' % (l1, l2, l3), []) for l1, l2, l3 in params.bt_steps] +
+            [('sd', [])]
         )
         self.last_time = time.time()
 
@@ -192,8 +193,8 @@ class Trainer(object):
             self.optimizers['memory'] = get_optimizer(self.parameters['memory'], params.mem_values_optimizer)
 
         ########## added ##########
-        # if params.use_xencoder:
-        #     self.optimizers['xencoder'] = get_optimizer(self.parameters['xencoder'], params.xencoder_optimizer)
+        if params.use_xencoder and params.elmo_tune_lm:    # params.elmo_tune_lm defaults to True.
+            self.optimizers['xencoder'] = get_optimizer(self.parameters['xencoder'], params.xencoder_optimizer)
         ############################
 
         # log
@@ -985,6 +986,13 @@ class EncDecTrainer(Trainer):
         self.stats['processed_s'] += len1.size(0)
         self.stats['processed_w'] += (len1 - 1).sum().item()
 
+def hook_fn_backward(grad):
+    condition = torch.logical_not(torch.isnan(grad) + torch.isinf(grad))
+    if (~condition).any():
+        logger.warning("Found nan or inf in the gradients.")
+    grad = torch.where(condition, grad, torch.zeros_like(grad).to(grad.device))
+
+    return grad
 
 class XLMCLTSEncDecTrainer(Trainer):
 
@@ -1036,9 +1044,9 @@ class XLMCLTSEncDecTrainer(Trainer):
 
         # cuda
         x1, len1, langs1, x2, len2, langs2, y = to_cuda(x1, len1, langs1, x2, len2, langs2, y)
-
+        
         # encode source sentence
-        enc1 = self.encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False, xencoder=self.xencoder)
+        enc1 = self.encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False, xencoder=self.xencoder, preLN=False)
         enc1 = enc1.transpose(0, 1)
 
         # decode target sentence
@@ -1048,23 +1056,47 @@ class XLMCLTSEncDecTrainer(Trainer):
         # loss
         _, loss = self.decoder('predict', tensor=dec2, pred_mask=pred_mask, y=y, get_scores=False)
         self.stats[('AE-%s' % lang1) if lang1 == lang2 else ('MT-%s-%s' % (lang1, lang2))].append(loss.item())
+
+        if params.sd_penalty and enc1.size(0) * enc1.size(1) > 1:
+            """ Compute the standard deviation of enc1 as a penalty to prevent the encoder from learning to output same hidden states. """
+            dim = enc1.size(-1)
+            enc1 = enc1.reshape(-1, dim)
+            assert enc1.size(0) > 1
+            penalty = -enc1.std(dim=0).mean()
+            lambda_penalty = 1e-4
+            loss = loss + lambda_penalty * penalty
+            self.stats["sd"].append(-penalty.item())
+
         loss = lambda_coeff * loss
 
 
         if (loss != loss).data.any():
             logger.warning("NaN detected")
 
-            print(x1.size(), x2.size())
-            print(dec2.size())
+            logger.info(x1.size(), x2.size())
+            logger.info(dec2.size())
             print(_.size())
-            # print(torch.topk(_, 1)[1].size())
-            # _ = torch.topk(_, 1)[1].squeeze(1).view(x1.size(1), -1)
+            print(torch.topk(_, 1)[1].size())
+            _ = torch.topk(_, 1)[1].squeeze(1).view(x1.size(1), -1)
             _word = [self.data['dico'].id2word[x.item()] for x in x1.transpose(0, 1)[0]]
             print(_word)
-            # exit()
-
+            exit()
+            
         # optimize
         self.optimize(loss)
+
+        # bug = False
+        # for model in self.MODEL_NAMES:
+        #     for name, param in getattr(self, model).named_parameters():
+        #         if param.grad is not None and (torch.isnan(param.grad) + torch.isinf(param.grad)).any():
+        #             logger.info(f"{model}, {name}")
+        #             logger.info(param.grad)
+        #             bug = True
+        # if bug:
+        #     for k, v in debug.items():
+        #         logger.info(k)
+        #         logger.info(v.shape)
+        #         logger.info(v)
 
         # number of processed sentences / words
         self.n_sentences += params.batch_size

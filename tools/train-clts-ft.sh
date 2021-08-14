@@ -4,18 +4,18 @@
 
 lgs=$1
 OUTPATH=data/processed/clts-$lgs/word-char_60k
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 
 # reload the pretrained XLM
-PRETRAINED="/home/zchen/CLTS/dumped/xlm_en_zh/3qt23aco6c/best-valid_en_mlm_ppl.pth"
+PRETRAINED="/home/zchen/CLTS/dumped/clts-ft-en-zh/a3wnk4ldrk/best-valid_en-zh_mt_rouge1.pth"
 
 CHECKPOINT="/home/zchen/CLTS/dumped/clts-ft-en-zh/udaq91nglj/checkpoint.pth"
 
 python train.py\
-    --exp_name clts-baseline-$lgs \
+    --exp_name clts-ft-$lgs \
     --dump_path ./dumped \
-    `# --reload_model "$PRETRAINED,$PRETRAINED" \
-    # --reload_checkpoint $CHECKPOINT`\
+    --reload_model "$PRETRAINED,$PRETRAINED" \
+    `# --reload_checkpoint $CHECKPOINT` \
     --data_path $OUTPATH  \
     --lgs $lgs  \
     --mt_steps $lgs  \
@@ -40,4 +40,4 @@ python train.py\
     --eval_rouge true \
     --label_smoothing 0.0 \
     --optimizer adam,beta1=0.9,beta2=0.98,lr=0.00005\
-    --eval_only false
+    --eval_only true

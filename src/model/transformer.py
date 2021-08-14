@@ -204,7 +204,7 @@ class MultiHeadAttention(nn.Module):
         self.v_lin = Linear(dim, dim)
         self.out_lin = Linear(dim, dim)
 
-    def forward(self, input, mask, kv=None, cache=None):
+    def forward(self, input, mask, kv=None, cache=None, prev=None):
         """
         Self-attention (if kv is None) or attention over source sentence (provided by kv).
         """
@@ -260,6 +260,8 @@ class MultiHeadAttention(nn.Module):
         q = q / math.sqrt(dim_per_head)
         # (bs, n_heads, qlen, klen)
         scores = torch.matmul(q, k.transpose(2, 3))
+        if prev is not None:
+            scores = scores + prev
 
         mask = (mask == 0).view(mask_reshape).expand_as(
             scores)               # (bs, n_heads, qlen, klen)
@@ -275,7 +277,10 @@ class MultiHeadAttention(nn.Module):
         # (bs, qlen, dim)
         context = unshape(context)
 
-        return self.out_lin(context)
+        if prev is not None:
+            return self.out_lin(context), scores
+        else:
+            return self.out_lin(context)
 
 
 class TransformerFFN(nn.Module):
@@ -331,6 +336,7 @@ class TransformerModel(nn.Module):
         self.dropout = params.dropout
         self.attention_dropout = params.attention_dropout
         assert self.dim % self.n_heads == 0, 'transformer dim must be a multiple of n_heads'
+        self.real = params.real
 
         # embeddings
         self.position_embeddings = Embedding(N_MAX_POSITIONS, self.dim)
@@ -468,18 +474,24 @@ class TransformerModel(nn.Module):
         tensor *= mask.unsqueeze(-1).to(tensor.dtype)  # (bs, slen, dim)
 
         # transformer layers
+        prev, dec_prev = 0, 0
         for i in range(self.n_layers):
 
             # self attention
-            attn = self.attentions[i](tensor, attn_mask, cache=cache)
+            if self.real:
+                attn, prev = self.attentions[i](tensor, attn_mask, cache=cache, prev=prev)
+            else:
+                attn = self.attentions[i](tensor, attn_mask, cache=cache)
             attn = F.dropout(attn, p=self.dropout, training=self.training)
             tensor = tensor + attn
             tensor = self.layer_norm1[i](tensor)
 
             # encoder attention (for decoder only)
             if self.is_decoder and src_enc is not None:
-                attn = self.encoder_attn[i](
-                    tensor, src_mask, kv=src_enc, cache=cache)
+                if self.real:
+                    attn, dec_prev = self.encoder_attn[i](tensor, src_mask, kv=src_enc, cache=cache, prev=dec_prev)
+                else:
+                    attn = self.encoder_attn[i](tensor, src_mask, kv=src_enc, cache=cache)
                 attn = F.dropout(attn, p=self.dropout, training=self.training)
                 tensor = tensor + attn
                 tensor = self.layer_norm15[i](tensor)
@@ -601,6 +613,10 @@ class TransformerModel(nn.Module):
                                                         src_enc.size(), tensor.size(), (1, bs, self.dim))
             tensor = tensor.data[-1, :, :].type_as(src_enc)  # (bs, dim)
             scores = self.pred_layer.get_scores(tensor)      # (bs, n_words)
+            
+            if cur_len == 1:
+                """ Mask <EOS> """
+                scores[:, self.eos_index] = -float("inf")
 
             # select next words: sample or greedy
             if sample_temperature is None:
@@ -718,6 +734,10 @@ class TransformerModel(nn.Module):
             # (bs * beam_size, n_words)
             scores = F.log_softmax(scores, dim=-1)
             assert scores.size() == (bs * beam_size, n_words)
+            
+            if cur_len == 1:
+                """ Mask <EOS> """
+                scores[:, self.eos_index] = -float("inf")
 
             # select next words with scores
             # (bs * beam_size, n_words)
@@ -912,6 +932,7 @@ class CrossLingualTransformerModel(nn.Module):
         self.dropout = params.ts_dropout
         self.attention_dropout = params.ts_attention_dropout
         assert self.dim % self.n_heads == 0, 'transformer dim must be a multiple of n_heads'
+        self.real = params.real
 
         self.xenc2sum = None
         if params.emb_dim != params.ts_emb_dim:
@@ -985,7 +1006,7 @@ class CrossLingualTransformerModel(nn.Module):
         else:
             raise Exception("Unknown mode: %s" % mode)
 
-    def fwd(self, x, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None, xencoder=None):
+    def fwd(self, x, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None, xencoder=None, preLN=False):
         """
         Inputs:
             `x` LongTensor(slen, bs), containing word indices
@@ -1037,29 +1058,44 @@ class CrossLingualTransformerModel(nn.Module):
 
         ##### End Added #####
 
+        # tensor = self.layer_norm_emb(tensor)
+        # tensor = F.dropout(tensor, p=self.dropout, training=self.training)
+
+        # tensor *= mask.unsqueeze(-1).to(tensor.dtype)  # (bs, slen, dim)
+
         # transformer layers
+        prev, dec_prev = 0, 0
         for i in range(self.n_layers):
 
             # self attention
-            attn = self.attentions[i](tensor, attn_mask, cache=cache)
+            tensor2 = self.layer_norm1[i](tensor) if preLN else tensor
+            if self.real:
+                attn, prev = self.attentions[i](tensor2, attn_mask, cache=cache, prev=prev)
+            else:
+                attn = self.attentions[i](tensor2, attn_mask, cache=cache)
             attn = F.dropout(attn, p=self.dropout, training=self.training)
             tensor = tensor + attn
-            tensor = self.layer_norm1[i](tensor)
+            if not preLN:
+                tensor = self.layer_norm1[i](tensor)
 
             # encoder attention (for decoder only)
             if self.is_decoder and src_enc is not None:
-                attn = self.encoder_attn[i](
-                    tensor, src_mask, kv=src_enc, cache=cache)
+                if self.real:
+                    attn, dec_prev = self.encoder_attn[i](tensor, src_mask, kv=src_enc, cache=cache, prev=dec_prev)
+                else:
+                    attn = self.encoder_attn[i](tensor, src_mask, kv=src_enc, cache=cache)
                 attn = F.dropout(attn, p=self.dropout, training=self.training)
                 tensor = tensor + attn
                 tensor = self.layer_norm15[i](tensor)
 
             # FFN
+            tensor2 = self.layer_norm2[i](tensor) if preLN else tensor
             if ('%i_in' % i) in self.memories:
-                tensor = tensor + self.memories['%i_in' % i](tensor)
+                tensor = tensor + self.memories['%i_in' % i](tensor2)
             else:
-                tensor = tensor + self.ffns[i](tensor)
-            tensor = self.layer_norm2[i](tensor)
+                tensor = tensor + self.ffns[i](tensor2)
+            if not preLN:
+                tensor = self.layer_norm2[i](tensor)
 
             # memory
             if ('%i_after' % i) in self.memories:
@@ -1165,6 +1201,10 @@ class CrossLingualTransformerModel(nn.Module):
                 tensor = self.sum2xenc(tensor)
             tensor = tensor.data[-1, :, :].type_as(src_enc)  # (bs, dim)
             scores = self.pred_layer.get_scores(tensor)      # (bs, n_words)
+            
+            if cur_len == 1:
+                """ Mask <EOS> """
+                scores[:, self.eos_index] = -float("inf")
 
             # select next words: sample or greedy
             if sample_temperature is None:
@@ -1282,6 +1322,10 @@ class CrossLingualTransformerModel(nn.Module):
             # (bs * beam_size, n_words)
             scores = F.log_softmax(scores, dim=-1)
             assert scores.size() == (bs * beam_size, n_words)
+            
+            if cur_len == 1:
+                """ Mask <EOS> """
+                scores[:, self.eos_index] = -float("inf")
 
             # select next words with scores
             # (bs * beam_size, n_words)

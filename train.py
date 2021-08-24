@@ -156,7 +156,7 @@ def get_parser():
     parser.add_argument("--accumulate_gradients", type=int, default=1,
                         help="Accumulate model gradients over N iterations (N times larger batch sizes)")
     parser.add_argument("--sd_penalty", type=bool_flag, default=False,
-                        help="Accumulate model gradients over N iterations (N times larger batch sizes)")
+                        help="A standard deviation penalty to keep the transformer encoder output from learning to become resemble to each other.")
 
     # training coefficients
     parser.add_argument("--lambda_mlm", type=str, default="1",

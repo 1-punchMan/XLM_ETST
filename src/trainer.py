@@ -1046,7 +1046,7 @@ class XLMCLTSEncDecTrainer(Trainer):
         x1, len1, langs1, x2, len2, langs2, y = to_cuda(x1, len1, langs1, x2, len2, langs2, y)
         
         # encode source sentence
-        enc1 = self.encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False, xencoder=self.xencoder, preLN=False)
+        enc1 = self.encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False, xencoder=self.xencoder)
         enc1 = enc1.transpose(0, 1)
 
         # decode target sentence

@@ -9,7 +9,7 @@ import sys
 import unicodedata
 import six
 from opencc import OpenCC
-cc = OpenCC('t2s')  # convert from Simplified Chinese to Traditional Chinese
+cc = OpenCC('t2s')  # convert from Traditional Chinese to Simplified Chinese
 
 
 def convert_to_unicode(text):

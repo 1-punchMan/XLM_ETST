@@ -244,8 +244,8 @@ class Evaluator(object):
 
         with torch.no_grad():
             
-            # for data_set in ['train']:
-            for data_set in ['valid', 'test']:
+            eval_set = ['test'] if params.eval_test_set else ['valid']
+            for data_set in eval_set:
 
                 # causal prediction task (evaluate perplexity and accuracy)
                 for lang1, lang2 in params.clm_steps:

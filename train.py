@@ -211,6 +211,8 @@ def get_parser():
                         help="Evaluate BLEU score during MT training")
     parser.add_argument("--eval_only", type=bool_flag, default=False,
                         help="Only run evaluations")
+    parser.add_argument("--eval_test_set", type=bool_flag, default=False,
+                        help="Use the test set during evaluations")
 
     # debug
     parser.add_argument("--debug_train", type=bool_flag, default=False,
@@ -606,7 +608,7 @@ if __name__ == '__main__':
 
     # generate parser / parse parameters
     parser = get_parser()
-    params = parser.parse_args()  
+    params = parser.parse_args()
 
     # debug mode
     if params.debug:

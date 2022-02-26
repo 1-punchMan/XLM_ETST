@@ -640,6 +640,7 @@ class Trainer(object):
                 logger.info("Best validation score: %f" % self.best_stopping_criterion)
             if self.decrease_counts >= self.decrease_counts_max:
                 logger.info("Stopping criterion has been below its best value for %i epochs. Ending the experiment..." % self.decrease_counts_max)
+                self.save_checkpoint('checkpoint', include_optimizers=True)
                 if self.params.multi_gpu and 'SLURM_JOB_ID' in os.environ:
                     os.system('scancel ' + os.environ['SLURM_JOB_ID'])
                 exit()

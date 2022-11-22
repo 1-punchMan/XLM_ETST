@@ -34,31 +34,31 @@ if [ ! -d "$MOSES_DIR" ]; then
   git clone https://github.com/moses-smt/mosesdecoder.git
 fi
 
-# Download fastBPE
-if [ ! -d "$FASTBPE_DIR" ]; then
-  echo "Cloning fastBPE from GitHub repository..."
-  git clone https://github.com/glample/fastBPE
-fi
+# # Download fastBPE
+# if [ ! -d "$FASTBPE_DIR" ]; then
+#   echo "Cloning fastBPE from GitHub repository..."
+#   git clone https://github.com/glample/fastBPE
+# fi
 
-# Compile fastBPE
-if [ ! -f "$FASTBPE" ]; then
-  echo "Compiling fastBPE..."
-  cd fastBPE
-  g++ -std=c++11 -pthread -O3 fastBPE/main.cc -IfastBPE -o fast
-  cd ..
-fi
+# # Compile fastBPE
+# if [ ! -f "$FASTBPE" ]; then
+#   echo "Compiling fastBPE..."
+#   cd fastBPE
+#   g++ -std=c++11 -pthread -O3 fastBPE/main.cc -IfastBPE -o fast
+#   cd ..
+# fi
 
-# Download Sennrich's tools
-if [ ! -d "$WMT16_SCRIPTS" ]; then
-  echo "Cloning WMT16 preprocessing scripts..."
-  git clone https://github.com/rsennrich/wmt16-scripts.git
-fi
+# # Download Sennrich's tools
+# if [ ! -d "$WMT16_SCRIPTS" ]; then
+#   echo "Cloning WMT16 preprocessing scripts..."
+#   git clone https://github.com/rsennrich/wmt16-scripts.git
+# fi
 
-# Download WikiExtractor
-if [ ! -d $TOOLS_PATH/wikiextractor ]; then
-    echo "Cloning WikiExtractor from GitHub repository..."
-    git clone https://github.com/attardi/wikiextractor.git
-fi
+# # Download WikiExtractor
+# if [ ! -d $TOOLS_PATH/wikiextractor ]; then
+#     echo "Cloning WikiExtractor from GitHub repository..."
+#     git clone https://github.com/attardi/wikiextractor.git
+# fi
 
 # # Chinese segmenter
 # if ! ls $TOOLS_PATH/stanford-segmenter-* 1> /dev/null 2>&1; then

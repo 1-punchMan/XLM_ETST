@@ -8,8 +8,6 @@
 import sys
 import unicodedata
 import six
-from opencc import OpenCC
-cc = OpenCC('t2s')  # convert from Traditional Chinese to Simplified Chinese
 
 
 def convert_to_unicode(text):
@@ -45,5 +43,4 @@ def run_strip_accents(text):
 for line in sys.stdin:
     line = convert_to_unicode(line.rstrip().lower())
     line = run_strip_accents(line)
-    line = cc.convert(line)
     print(u'%s' % line.lower())

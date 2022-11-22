@@ -529,9 +529,9 @@ class EncDecEvaluator(Evaluator):
                     all_mem_att[k].append((v.last_indices, v.last_scores))
 
             # generate translation - translate / convert to text
-            if eval_bleu or eval_rouge:   # edited by chiamin
+            if eval_bleu or eval_rouge:
                 # max_len = int(1.5 * len1.max().item() + 10)
-                max_len = int(0.6 * len1.max().item())
+                max_len = params.max_len
                 if params.beam_size == 1:
                     generated, lengths = decoder.generate(
                         enc1, len1, lang2_id, max_len=max_len)

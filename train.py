@@ -146,7 +146,7 @@ def get_parser():
     parser.add_argument("--clip_grad_norm", type=float, default=5,
                         help="Clip gradients norm (0 to disable)")
     parser.add_argument("--epoch_size", type=int, default=100000,
-                        help="Epoch size / evaluation frequency (-1 for parallel data size)")
+                        help="Epoch size, # of sentences / evaluation frequency (-1 for parallel data size)")
     parser.add_argument("--max_epoch", type=int, default=100000,
                         help="Maximum epoch size")
     parser.add_argument("--stopping_criterion", type=str, default="",
